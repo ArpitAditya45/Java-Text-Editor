@@ -8,6 +8,8 @@ import org.jline.terminal.Terminal;
 import org.jline.terminal.TerminalBuilder;
 import org.jline.utils.InfoCmp;
 
+import com.editor.util.Constants.CursorDirection;
+import com.editor.util.Debugger;
 import sun.misc.Signal;
 import sun.misc.SignalHandler;
 
@@ -19,6 +21,7 @@ public class TerminalUI {
     static final int HEADER_DISPLAY = 2;
 
     public void createTerminal() {
+        String functionName = "TerminalUI::createTerminal";
         try {
 
             Terminal terminal = TerminalBuilder.builder()
@@ -34,12 +37,13 @@ public class TerminalUI {
             terminal.close();
 
         } catch (Exception ex) {
-            System.out.println("An exception occured while creating the terminal");
-            System.out.println(ex.getStackTrace());
+            Debugger.log(functionName);
+            Debugger.error(ex.getMessage());
+            Debugger.printStackTrace(ex);
         }
     }
 
-    public static void blockSignals() {
+    public static void handelBlockSignals() {
         Signal.handle(new Signal("INT"), new SignalHandler() {
             @Override
             public void handle(Signal sig) {
@@ -61,7 +65,7 @@ public class TerminalUI {
 
         lineBuffer.add(new StringBuilder());
         while (true) {
-            blockSignals();
+            handelBlockSignals();
             int key = terminal.reader().read();
             // terminal.writer().println(key);
             // terminal.flush();
@@ -83,6 +87,32 @@ public class TerminalUI {
                 cursorCol = -1;
                 terminal.writer().print("\n");
                 terminal.flush();
+            }
+            if (key == 27) { // This is for Escape 27
+                int next1 = terminal.reader().read(); // This is [ 91
+                int next2 = terminal.reader().read(); // This is final character
+                if (next1 == 91) {
+                    switch (next2) {
+                        case 65:
+                            // System.out.println("UP");
+                            handleCursorMovements(terminal, CursorDirection.UP);
+                            break;
+                        case 66:
+                            // System.out.println("DOWN");
+                            handleCursorMovements(terminal, CursorDirection.DOWN);
+                            break;
+                        case 67:
+                            // System.out.println("RIGHT");
+                            handleCursorMovements(terminal, CursorDirection.RIGHT);
+                            break;
+                        case 68:
+                            // System.out.println("LEFT");
+                            handleCursorMovements(terminal, CursorDirection.LEFT);
+                            break;
+                        default:
+                            break;
+                    }
+                }
             }
 
         }
@@ -110,31 +140,63 @@ public class TerminalUI {
                     // lineBuffer.get(cursorRow).deleteCharAt(cursorCol);
                     // cursorCol--;
                     staticPrint.clearScreen(terminal);
-                    redraw(terminal);
+                    handleRedraw(terminal);
                 }
 
             }
         } catch (Exception ex) {
-            System.out.println("An exception occured while creating the terminal in function " + functionName);
-            System.out.println(ex.getStackTrace());
+            Debugger.log(functionName);
+            Debugger.error(ex.getMessage());
+            Debugger.printStackTrace(ex);
         }
     }
 
-    public static void redraw(Terminal terminal) {
-        staticPrint.printImpDetailInStarting(terminal);
-        for (StringBuilder stringBuilder : lineBuffer) {
-            terminal.writer().println(stringBuilder.toString());
+    public static void handleRedraw(Terminal terminal) {
+        String functionName = "TerminalUI::redraw";
+        try {
+            staticPrint.printImpDetailInStarting(terminal);
+            for (StringBuilder stringBuilder : lineBuffer) {
+                terminal.writer().println(stringBuilder.toString());
+            }
+            cursorRow = lineBuffer.size() - 1;
+            cursorCol = lineBuffer.get(cursorRow).length() - 1; // placing the character on the last index , if delete
+                                                                // is
+                                                                // pressed , it will work
+            terminal.writer().print(String.format("\033[%d;%dH", cursorRow + HEADER_DISPLAY + 1, cursorCol + 2)); // if
+                                                                                                                  // append
+                                                                                                                  // is
+                                                                                                                  // pressed
+                                                                                                                  // this
+                                                                                                                  // will
+                                                                                                                  // work
+            terminal.flush();
+
+        } catch (Exception ex) {
+            Debugger.log(functionName);
+            Debugger.error(ex.getMessage());
+            Debugger.printStackTrace(ex);
         }
-        cursorRow = lineBuffer.size() - 1;
-        cursorCol = lineBuffer.get(cursorRow).length() - 1; // placing the character on the last index , if delete is
-                                                            // pressed , it will work
-        terminal.writer().print(String.format("\033[%d;%dH", cursorRow + HEADER_DISPLAY + 1, cursorCol + 2)); // if
-                                                                                                              // append
-                                                                                                              // is
-                                                                                                              // pressed
-                                                                                                              // this
-                                                                                                              // will
-                                                                                                              // work
+    }
+
+    public static void handleCursorMovements(Terminal terminal, CursorDirection direction) {
+        // moveLeft
+        switch (direction) {
+            case UP:
+                terminal.writer().print("\033[A");
+                break;
+            case DOWN:
+                terminal.writer().print("\033[B");
+                break;
+            case RIGHT:
+                terminal.writer().print("\033[C");
+                break;
+            case LEFT:
+                terminal.writer().print("\033[D");
+                break;
+            default:
+                break;
+        }
         terminal.flush();
+
     }
 }
