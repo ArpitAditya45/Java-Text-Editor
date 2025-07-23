@@ -15,10 +15,11 @@ import sun.misc.SignalHandler;
 
 public class TerminalUI {
     static int cursorRow = 0;
-    static int cursorCol = -1;
+    static int cursorCol = 0;
     static List<StringBuilder> lineBuffer = new ArrayList<>();
     static Info staticPrint = new Info();
     static final int HEADER_DISPLAY = 2;
+    static int prefferedCol = -1; // remember the vertical memory for up /down cursor movements
 
     public void createTerminal() {
         String functionName = "TerminalUI::createTerminal";
@@ -69,6 +70,7 @@ public class TerminalUI {
             int key = terminal.reader().read();
             // terminal.writer().println(key);
             // terminal.flush();
+            // terminal.writer().println(cursorRow + " " + cursorCol);
             if (key == 17) // Ctrl+Q to exit
                 break;
             if (key == 127 || key == 8) { // backspace
@@ -84,7 +86,7 @@ public class TerminalUI {
             if (key == 13 || key == 10) { // If the user presses return , for new line
                 lineBuffer.add(new StringBuilder());
                 cursorRow++;
-                cursorCol = -1;
+                cursorCol = 0;
                 terminal.writer().print("\n");
                 terminal.flush();
             }
@@ -122,23 +124,15 @@ public class TerminalUI {
         String functionName = "TerminalUI::handleBackSpace";
 
         try {
-            // System.out.println(cursorRow + " " + cursorCol);
             if (cursorRow >= 0) {
-                if (cursorCol >= 0) {
-                    lineBuffer.get(cursorRow).deleteCharAt(cursorCol);
+                if (cursorCol > 0) {
+                    lineBuffer.get(cursorRow).deleteCharAt(cursorCol - 1);
                     cursorCol--;
                     terminal.writer().print("\b \b");
                     terminal.flush();
-                } else if (cursorCol == -1 && cursorRow > 0) {// The whole sentence is deleted , so move to pevious
-                                                              // sentence if stored
-
-                    // Future me will hate me for this logic , but current me is so happy !!!
-                    lineBuffer.remove(cursorRow);
-                    cursorRow--; // Moving sentence to previous
-                    cursorCol = lineBuffer.get(cursorRow).length() - 1; // set cursorCol to last index of the previous
-                                                                        // word
-                    // lineBuffer.get(cursorRow).deleteCharAt(cursorCol);
-                    // cursorCol--;
+                } else if (cursorCol == 0 && cursorRow > 0) {// The whole sentence is deleted , so move to pevious
+                    StringBuilder currentLine = lineBuffer.remove(cursorRow); // remove current
+                    lineBuffer.get(cursorRow - 1).append(currentLine); // merge current into previous
                     staticPrint.clearScreen(terminal);
                     handleRedraw(terminal);
                 }
@@ -159,16 +153,15 @@ public class TerminalUI {
                 terminal.writer().println(stringBuilder.toString());
             }
             cursorRow = lineBuffer.size() - 1;
-            cursorCol = lineBuffer.get(cursorRow).length() - 1; // placing the character on the last index , if delete
-                                                                // is
-                                                                // pressed , it will work
-            terminal.writer().print(String.format("\033[%d;%dH", cursorRow + HEADER_DISPLAY + 1, cursorCol + 2)); // if
-                                                                                                                  // append
-                                                                                                                  // is
-                                                                                                                  // pressed
-                                                                                                                  // this
-                                                                                                                  // will
-                                                                                                                  // work
+            cursorCol = Math.max(0, lineBuffer.get(cursorRow).length()); // placing the character on the last index if
+                                                                         // delete is pressed it works
+            terminal.writer().print(String.format("\033[%d;%dH", cursorRow + HEADER_DISPLAY + 1, cursorCol + 1));// if
+                                                                                                                 // append
+                                                                                                                 // is
+                                                                                                                 // pressed
+                                                                                                                 // it
+                                                                                                                 // will
+                                                                                                                 // work
             terminal.flush();
 
         } catch (Exception ex) {
@@ -179,19 +172,42 @@ public class TerminalUI {
     }
 
     public static void handleCursorMovements(Terminal terminal, CursorDirection direction) {
-        // moveLeft
         switch (direction) {
             case UP:
-                terminal.writer().print("\033[A");
+                if (cursorRow > 0) {
+                    if (prefferedCol == -1)
+                        prefferedCol = cursorCol;
+                    cursorRow--;
+                    int prevLineLength = lineBuffer.get(cursorRow).length();
+                    cursorCol = Math.min(prefferedCol, prevLineLength);
+                    terminal.writer()
+                            .print(String.format("\033[%d;%dH", cursorRow + HEADER_DISPLAY + 1, cursorCol + 1));
+                }
                 break;
             case DOWN:
-                terminal.writer().print("\033[B");
+                if (cursorRow < lineBuffer.size() - 1) {
+                    if (prefferedCol == -1)
+                        prefferedCol = cursorCol;
+                    cursorRow++;
+                    int nextLineLength = lineBuffer.get(cursorRow).length();
+                    cursorCol = Math.min(prefferedCol, nextLineLength);
+                    terminal.writer()
+                            .print(String.format("\033[%d;%dH", cursorRow + HEADER_DISPLAY + 1, cursorCol + 1));
+                }
                 break;
             case RIGHT:
-                terminal.writer().print("\033[C");
+                if (cursorCol < lineBuffer.get(cursorRow).length()) {
+                    terminal.writer().print("\033[C");
+                    cursorCol++;
+                    prefferedCol = -1;
+                }
                 break;
             case LEFT:
-                terminal.writer().print("\033[D");
+                if (cursorCol > 0) {
+                    terminal.writer().print("\033[D");
+                    cursorCol--;
+                    prefferedCol = -1;
+                }
                 break;
             default:
                 break;
