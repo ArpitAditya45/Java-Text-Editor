@@ -45,25 +45,31 @@ public class TerminalUI {
     }
 
     public static void handelBlockSignals() {
-        Signal.handle(new Signal("INT"), new SignalHandler() {
-            @Override
-            public void handle(Signal sig) {
-                System.out.println("Ctrl+C (SIGINT) ignored.");
-                // Optional: add custom logic here
-            }
-        });
+        String functionName = "TerminalUI::handelBlockSignals";
+        try {
+            Signal.handle(new Signal("INT"), new SignalHandler() {
+                @Override
+                public void handle(Signal sig) {
+                    System.out.println("Ctrl+C (SIGINT) ignored.");
+                    // Optional: add custom logic here
+                }
+            });
 
-        Signal.handle(new Signal("TSTP"), new SignalHandler() {
-            @Override
-            public void handle(Signal sig) {
-                System.out.println("Ctrl+Z (SIGTSTP) ignored.");
-                // Optional: remove this if you want to allow suspension
-            }
-        });
+            Signal.handle(new Signal("TSTP"), new SignalHandler() {
+                @Override
+                public void handle(Signal sig) {
+                    System.out.println("Ctrl+Z (SIGTSTP) ignored.");
+                    // Optional: remove this if you want to allow suspension
+                }
+            });
+        } catch (Exception ex) {
+            Debugger.log(functionName);
+            Debugger.error(ex.getMessage());
+            Debugger.printStackTrace(ex);
+        }
     }
 
     public static void startProcess(Terminal terminal) throws IOException {
-
         lineBuffer.add(new StringBuilder());
         while (true) {
             handelBlockSignals();
@@ -183,47 +189,54 @@ public class TerminalUI {
     }
 
     public static void handleCursorMovements(Terminal terminal, CursorDirection direction) {
-        switch (direction) {
-            case UP:
-                if (cursorRow > 0) {
-                    if (prefferedCol == -1)
-                        prefferedCol = cursorCol;
-                    cursorRow--;
-                    int prevLineLength = lineBuffer.get(cursorRow).length();
-                    cursorCol = Math.min(prefferedCol, prevLineLength);
-                    terminal.writer()
-                            .print(String.format("\033[%d;%dH", cursorRow + HEADER_DISPLAY + 1, cursorCol + 1));
-                }
-                break;
-            case DOWN:
-                if (cursorRow < lineBuffer.size() - 1) {
-                    if (prefferedCol == -1)
-                        prefferedCol = cursorCol;
-                    cursorRow++;
-                    int nextLineLength = lineBuffer.get(cursorRow).length();
-                    cursorCol = Math.min(prefferedCol, nextLineLength);
-                    terminal.writer()
-                            .print(String.format("\033[%d;%dH", cursorRow + HEADER_DISPLAY + 1, cursorCol + 1));
-                }
-                break;
-            case RIGHT:
-                if (cursorCol < lineBuffer.get(cursorRow).length()) {
-                    terminal.writer().print("\033[C");
-                    cursorCol++;
-                    prefferedCol = -1;
-                }
-                break;
-            case LEFT:
-                if (cursorCol > 0) {
-                    terminal.writer().print("\033[D");
-                    cursorCol--;
-                    prefferedCol = -1;
-                }
-                break;
-            default:
-                break;
+        String functionName = "TerminalUI::handleCursorMovements";
+        try {
+            switch (direction) {
+                case UP:
+                    if (cursorRow > 0) {
+                        if (prefferedCol == -1)
+                            prefferedCol = cursorCol;
+                        cursorRow--;
+                        int prevLineLength = lineBuffer.get(cursorRow).length();
+                        cursorCol = Math.min(prefferedCol, prevLineLength);
+                        terminal.writer()
+                                .print(String.format("\033[%d;%dH", cursorRow + HEADER_DISPLAY + 1, cursorCol + 1));
+                    }
+                    break;
+                case DOWN:
+                    if (cursorRow < lineBuffer.size() - 1) {
+                        if (prefferedCol == -1)
+                            prefferedCol = cursorCol;
+                        cursorRow++;
+                        int nextLineLength = lineBuffer.get(cursorRow).length();
+                        cursorCol = Math.min(prefferedCol, nextLineLength);
+                        terminal.writer()
+                                .print(String.format("\033[%d;%dH", cursorRow + HEADER_DISPLAY + 1, cursorCol + 1));
+                    }
+                    break;
+                case RIGHT:
+                    if (cursorCol < lineBuffer.get(cursorRow).length()) {
+                        terminal.writer().print("\033[C");
+                        cursorCol++;
+                        prefferedCol = -1;
+                    }
+                    break;
+                case LEFT:
+                    if (cursorCol > 0) {
+                        terminal.writer().print("\033[D");
+                        cursorCol--;
+                        prefferedCol = -1;
+                    }
+                    break;
+                default:
+                    break;
+            }
+            terminal.flush();
+        } catch (Exception ex) {
+            Debugger.log(functionName);
+            Debugger.error(ex.getMessage());
+            Debugger.printStackTrace(ex);
         }
-        terminal.flush();
 
     }
 }
