@@ -78,9 +78,20 @@ public class TerminalUI {
                 continue;
             }
             if (key >= 32 && key <= 126) { // All the printable ASCII character
-                lineBuffer.get(cursorRow).append(Character.toString(key));
+                // Printing the line after every character append
+                StringBuilder line = lineBuffer.get(cursorRow);
+                line.insert(cursorCol, (char) key);
                 cursorCol++;
-                terminal.writer().print((char) key);
+                terminal.writer().print(String.format("\033[%d;1H", cursorRow + HEADER_DISPLAY + 1)); // Move to row
+                                                                                                      // column 1
+                terminal.writer().print("\033[2K"); // Clear the entire line
+                terminal.writer().print(line.toString());
+                terminal.writer().print(String.format("\033[%d;%dH", cursorRow + HEADER_DISPLAY + 1, cursorCol + 1)); // keep
+                                                                                                                      // the
+                                                                                                                      // cursor
+                                                                                                                      // at
+                                                                                                                      // the
+                                                                                                                      // location
                 terminal.flush();
             }
             if (key == 13 || key == 10) { // If the user presses return , for new line
