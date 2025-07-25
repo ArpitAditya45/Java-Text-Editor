@@ -19,7 +19,6 @@
       <scope>test</scope>
     </dependency>
 
-    <!-- JLine for terminal input -->
     <dependency>
       <groupId>org.jline</groupId>
       <artifactId>jline</artifactId>
@@ -40,7 +39,7 @@
         </configuration>
       </plugin>
 
-      <!-- Exec Plugin for running Java -->
+      <!-- Exec Plugin -->
       <plugin>
         <groupId>org.codehaus.mojo</groupId>
         <artifactId>exec-maven-plugin</artifactId>
@@ -48,6 +47,26 @@
         <configuration>
           <mainClass>com.editor.TextEditor</mainClass>
         </configuration>
+      </plugin>
+
+      <!-- Shade Plugin to create Fat JAR -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-shade-plugin</artifactId>
+        <version>3.4.1</version>
+        <executions>
+          <execution>
+            <phase>package</phase>
+            <goals><goal>shade</goal></goals>
+            <configuration>
+              <transformers>
+                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                  <mainClass>com.editor.TextEditor</mainClass>
+                </transformer>
+              </transformers>
+            </configuration>
+          </execution>
+        </executions>
       </plugin>
     </plugins>
   </build>

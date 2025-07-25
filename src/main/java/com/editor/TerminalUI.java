@@ -101,11 +101,18 @@ public class TerminalUI {
                 terminal.flush();
             }
             if (key == 13 || key == 10) { // If the user presses return , for new line
-                lineBuffer.add(new StringBuilder());
+                int currentLineSize = lineBuffer.get(cursorRow).length();
+                String left = lineBuffer.get(cursorRow).substring(0, cursorCol);
+                String right = lineBuffer.get(cursorRow).substring(cursorCol);
+                lineBuffer.get(cursorRow).replace(0, cursorCol, left);
+                lineBuffer.get(cursorRow).replace(cursorCol, currentLineSize, "");
+                lineBuffer.add(cursorRow + 1, new StringBuilder(right));
                 cursorRow++;
                 cursorCol = 0;
-                terminal.writer().print("\n");
-                terminal.flush();
+                staticPrint.clearScreen(terminal);
+                staticPrint.printImpDetailInStarting(terminal);
+                handleRedraw(terminal);
+                moveCursorToSpecificPosition(terminal, cursorRow, cursorCol);
             }
             if (key == 27) { // This is for Escape 27
                 int next1 = terminal.reader().read(); // This is [ 91
@@ -151,7 +158,11 @@ public class TerminalUI {
                     StringBuilder currentLine = lineBuffer.remove(cursorRow); // remove current
                     lineBuffer.get(cursorRow - 1).append(currentLine); // merge current into previous
                     staticPrint.clearScreen(terminal);
+                    staticPrint.printImpDetailInStarting(terminal);
                     handleRedraw(terminal);
+                    cursorRow = lineBuffer.size() - 1;
+                    cursorCol = Math.max(0, lineBuffer.get(cursorRow).length());
+                    moveCursorToSpecificPosition(terminal, cursorRow, cursorCol);
                 }
 
             }
@@ -165,22 +176,10 @@ public class TerminalUI {
     public static void handleRedraw(Terminal terminal) {
         String functionName = "TerminalUI::redraw";
         try {
-            staticPrint.printImpDetailInStarting(terminal);
             for (StringBuilder stringBuilder : lineBuffer) {
                 terminal.writer().println(stringBuilder.toString());
             }
-            cursorRow = lineBuffer.size() - 1;
-            cursorCol = Math.max(0, lineBuffer.get(cursorRow).length()); // placing the character on the last index if
-                                                                         // delete is pressed it works
-            terminal.writer().print(String.format("\033[%d;%dH", cursorRow + HEADER_DISPLAY + 1, cursorCol + 1));// if
-                                                                                                                 // append
-                                                                                                                 // is
-                                                                                                                 // pressed
-                                                                                                                 // it
-                                                                                                                 // will
-                                                                                                                 // work
             terminal.flush();
-
         } catch (Exception ex) {
             Debugger.log(functionName);
             Debugger.error(ex.getMessage());
@@ -238,5 +237,10 @@ public class TerminalUI {
             Debugger.printStackTrace(ex);
         }
 
+    }
+
+    public static void moveCursorToSpecificPosition(Terminal terminal, int row, int col) {
+        terminal.writer().print(String.format("\033[%d;%dH", row + HEADER_DISPLAY + 1, col + 1));
+        terminal.flush();
     }
 }
