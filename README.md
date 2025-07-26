@@ -39,4 +39,14 @@ mvn exec:java
 
 ## 🚀 How to Build and Run (DOCKER)
 
-### Coming Soon
+### 1. Pull the Docker Image
+
+```bash
+docker pull godslayer45/javatexteditor
+```
+
+### 2. Run the Docker Image
+
+```bash
+docker run -it godslayer45/javatexteditor
+```

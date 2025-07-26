@@ -254,4 +254,5 @@ public class TerminalUI {
         terminal.writer().print(String.format("\033[%d;%dH", row + HEADER_DISPLAY + 1, col + 1));
         terminal.flush();
     }
+
 }
