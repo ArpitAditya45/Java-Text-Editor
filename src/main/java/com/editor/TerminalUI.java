@@ -150,18 +150,29 @@ public class TerminalUI {
         try {
             if (cursorRow >= 0) {
                 if (cursorCol > 0) {
-                    lineBuffer.get(cursorRow).deleteCharAt(cursorCol - 1);
+                    String line = lineBuffer.get(cursorRow).deleteCharAt(cursorCol - 1).toString();
                     cursorCol--;
-                    terminal.writer().print("\b \b");
+                    terminal.writer().print(String.format("\033[%d;1H", cursorRow + HEADER_DISPLAY + 1)); // Move to row
+                    // column 1
+                    terminal.writer().print("\033[2K"); // Clear the entire line
+                    terminal.writer().print(line.toString());
+                    terminal.writer()
+                            .print(String.format("\033[%d;%dH", cursorRow + HEADER_DISPLAY + 1, cursorCol + 1)); // keep
+                                                                                                                 // the
+                                                                                                                 // cursor
+                                                                                                                 // at
+                                                                                                                 // the
+                                                                                                                 // location
                     terminal.flush();
                 } else if (cursorCol == 0 && cursorRow > 0) {// The whole sentence is deleted , so move to pevious
                     StringBuilder currentLine = lineBuffer.remove(cursorRow); // remove current
+                    // Get the column before appending so the cursor is in exact postion
+                    cursorCol = Math.max(0, lineBuffer.get(cursorRow - 1).length());
                     lineBuffer.get(cursorRow - 1).append(currentLine); // merge current into previous
                     staticPrint.clearScreen(terminal);
                     staticPrint.printImpDetailInStarting(terminal);
                     handleRedraw(terminal);
                     cursorRow = lineBuffer.size() - 1;
-                    cursorCol = Math.max(0, lineBuffer.get(cursorRow).length());
                     moveCursorToSpecificPosition(terminal, cursorRow, cursorCol);
                 }
 
