@@ -7,4 +7,11 @@ public class Constants {
         LEFT,
         RIGHT
     }
+
+    public enum OperationType {
+        INSERT,
+        DELETE,
+        SPLIT_LINE,
+        JOIN_LINE
+    }
 }

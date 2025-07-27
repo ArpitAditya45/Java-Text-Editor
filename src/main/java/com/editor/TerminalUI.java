@@ -3,12 +3,14 @@ package com.editor;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Stack;
 
 import org.jline.terminal.Terminal;
 import org.jline.terminal.TerminalBuilder;
 import org.jline.utils.InfoCmp;
 
 import com.editor.util.Constants.CursorDirection;
+import com.editor.util.Constants.OperationType;
 import com.editor.util.Debugger;
 import sun.misc.Signal;
 import sun.misc.SignalHandler;
@@ -18,8 +20,10 @@ public class TerminalUI {
     static int cursorCol = 0;
     static List<StringBuilder> lineBuffer = new ArrayList<>();
     static Info staticPrint = new Info();
-    static final int HEADER_DISPLAY = 2;
+    static final int HEADER_DISPLAY = 3;
     static int prefferedCol = -1; // remember the vertical memory for up /down cursor movements
+    static Stack<TextAction> undoStack = new Stack<>();
+    static Stack<TextAction> redoStack = new Stack<>();
 
     public void createTerminal() {
         String functionName = "TerminalUI::createTerminal";
@@ -86,6 +90,7 @@ public class TerminalUI {
             if (key >= 32 && key <= 126) { // All the printable ASCII character
                 // Printing the line after every character append
                 StringBuilder line = lineBuffer.get(cursorRow);
+                undoStack.push(new TextAction(cursorRow, cursorCol, new StringBuilder(line), OperationType.INSERT));
                 line.insert(cursorCol, (char) key);
                 cursorCol++;
                 terminal.writer().print(String.format("\033[%d;1H", cursorRow + HEADER_DISPLAY + 1)); // Move to row
@@ -140,6 +145,12 @@ public class TerminalUI {
                     }
                 }
             }
+            if (key == 21) { // Implement Undo
+                performUndo(terminal);
+            }
+            if (key == 18) { // Implement Redo
+
+            }
 
         }
     }
@@ -149,8 +160,11 @@ public class TerminalUI {
 
         try {
             if (cursorRow >= 0) {
+                StringBuilder line = lineBuffer.get(cursorRow);
                 if (cursorCol > 0) {
-                    String line = lineBuffer.get(cursorRow).deleteCharAt(cursorCol - 1).toString();
+                    undoStack.push(
+                            new TextAction(cursorRow, cursorCol, new StringBuilder(line), OperationType.DELETE));
+                    line.deleteCharAt(cursorCol - 1).toString();
                     cursorCol--;
                     terminal.writer().print(String.format("\033[%d;1H", cursorRow + HEADER_DISPLAY + 1)); // Move to row
                     // column 1
@@ -255,4 +269,49 @@ public class TerminalUI {
         terminal.flush();
     }
 
+    public static void performUndo(Terminal terminal) {
+        String functionName = "TerminalUI:performUndo";
+        try {
+            if (undoStack.isEmpty()) {
+                return;
+            }
+            TextAction textAction = undoStack.pop();
+            StringBuilder line;
+            switch (textAction.op) {
+                case INSERT:
+                    line = textAction.text;
+                    lineBuffer.set(textAction.row, line);
+                    cursorRow = textAction.row;
+                    cursorCol = textAction.col;
+                    break;
+                case DELETE:
+                    line = textAction.text;
+                    lineBuffer.set(textAction.row, line);
+                    cursorRow = textAction.row;
+                    cursorCol = textAction.col;
+                    break;
+                case SPLIT_LINE:
+                    break;
+                case JOIN_LINE:
+                    break;
+                default:
+                    break;
+            }
+            terminal.writer().print(String.format("\033[%d;1H", textAction.row + HEADER_DISPLAY + 1)); // Move
+            // to
+            // row
+            // column 1
+            terminal.writer().print("\033[2K"); // Clear the entire line
+            terminal.writer().print(lineBuffer.get(cursorRow).toString());
+            terminal.writer()
+                    .print(String.format("\033[%d;%dH", textAction.row + HEADER_DISPLAY + 1,
+                            textAction.col + 1));
+            terminal.flush();
+
+        } catch (Exception ex) {
+            Debugger.log(functionName);
+            Debugger.error(ex.getMessage());
+            Debugger.printStackTrace(ex);
+        }
+    }
 }
