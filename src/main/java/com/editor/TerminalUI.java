@@ -89,35 +89,17 @@ public class TerminalUI {
             }
             if (key >= 32 && key <= 126) { // All the printable ASCII character
                 // Printing the line after every character append
+                undoStack.push(
+                        new TextAction(cursorRow, cursorCol, new StringBuilder(Character.toString((char) key)),
+                                OperationType.INSERT));
                 StringBuilder line = lineBuffer.get(cursorRow);
-                undoStack.push(new TextAction(cursorRow, cursorCol, new StringBuilder(line), OperationType.INSERT));
                 line.insert(cursorCol, (char) key);
                 cursorCol++;
-                terminal.writer().print(String.format("\033[%d;1H", cursorRow + HEADER_DISPLAY + 1)); // Move to row
-                                                                                                      // column 1
-                terminal.writer().print("\033[2K"); // Clear the entire line
-                terminal.writer().print(line.toString());
-                terminal.writer().print(String.format("\033[%d;%dH", cursorRow + HEADER_DISPLAY + 1, cursorCol + 1)); // keep
-                                                                                                                      // the
-                                                                                                                      // cursor
-                                                                                                                      // at
-                                                                                                                      // the
-                                                                                                                      // location
-                terminal.flush();
+                clearLineAndRedraw(terminal);
             }
             if (key == 13 || key == 10) { // If the user presses return , for new line
-                int currentLineSize = lineBuffer.get(cursorRow).length();
-                String left = lineBuffer.get(cursorRow).substring(0, cursorCol);
-                String right = lineBuffer.get(cursorRow).substring(cursorCol);
-                lineBuffer.get(cursorRow).replace(0, cursorCol, left);
-                lineBuffer.get(cursorRow).replace(cursorCol, currentLineSize, "");
-                lineBuffer.add(cursorRow + 1, new StringBuilder(right));
-                cursorRow++;
-                cursorCol = 0;
-                staticPrint.clearScreen(terminal);
-                staticPrint.printImpDetailInStarting(terminal);
-                handleRedraw(terminal);
-                moveCursorToSpecificPosition(terminal, cursorRow, cursorCol);
+                undoStack.push(new TextAction(cursorRow, cursorCol, new StringBuilder(), OperationType.SPLIT_LINE));
+                performEnter(terminal);
             }
             if (key == 27) { // This is for Escape 27
                 int next1 = terminal.reader().read(); // This is [ 91
@@ -161,33 +143,22 @@ public class TerminalUI {
         try {
             if (cursorRow >= 0) {
                 StringBuilder line = lineBuffer.get(cursorRow);
+
                 if (cursorCol > 0) {
-                    undoStack.push(
-                            new TextAction(cursorRow, cursorCol, new StringBuilder(line), OperationType.DELETE));
-                    line.deleteCharAt(cursorCol - 1).toString();
+                    char ch = line.charAt(cursorCol - 1);
+                    line.deleteCharAt(cursorCol - 1);
                     cursorCol--;
-                    terminal.writer().print(String.format("\033[%d;1H", cursorRow + HEADER_DISPLAY + 1)); // Move to row
-                    // column 1
-                    terminal.writer().print("\033[2K"); // Clear the entire line
-                    terminal.writer().print(line.toString());
-                    terminal.writer()
-                            .print(String.format("\033[%d;%dH", cursorRow + HEADER_DISPLAY + 1, cursorCol + 1)); // keep
-                                                                                                                 // the
-                                                                                                                 // cursor
-                                                                                                                 // at
-                                                                                                                 // the
-                                                                                                                 // location
-                    terminal.flush();
-                } else if (cursorCol == 0 && cursorRow > 0) {// The whole sentence is deleted , so move to pevious
-                    StringBuilder currentLine = lineBuffer.remove(cursorRow); // remove current
-                    // Get the column before appending so the cursor is in exact postion
-                    cursorCol = Math.max(0, lineBuffer.get(cursorRow - 1).length());
-                    lineBuffer.get(cursorRow - 1).append(currentLine); // merge current into previous
-                    staticPrint.clearScreen(terminal);
-                    staticPrint.printImpDetailInStarting(terminal);
-                    handleRedraw(terminal);
-                    cursorRow = lineBuffer.size() - 1;
-                    moveCursorToSpecificPosition(terminal, cursorRow, cursorCol);
+                    undoStack
+                            .push(new TextAction(cursorRow, cursorCol,
+                                    new StringBuilder(Character.toString(ch)),
+                                    OperationType.DELETE));
+                    clearLineAndRedraw(terminal);
+                } else if (cursorCol == 0 && cursorRow > 0) {// The whole sentence is deleted or the cursor is at
+                                                             // starting , so move to pevious
+                    performLineMerge(terminal);
+                    undoStack
+                            .push(new TextAction(cursorRow, cursorCol, new StringBuilder(),
+                                    OperationType.JOIN_LINE));
                 }
 
             }
@@ -276,42 +247,95 @@ public class TerminalUI {
                 return;
             }
             TextAction textAction = undoStack.pop();
-            StringBuilder line;
             switch (textAction.op) {
                 case INSERT:
-                    line = textAction.text;
-                    lineBuffer.set(textAction.row, line);
                     cursorRow = textAction.row;
                     cursorCol = textAction.col;
+                    lineBuffer.get(cursorRow).deleteCharAt(cursorCol);
+                    clearLineAndRedraw(terminal);
                     break;
                 case DELETE:
-                    line = textAction.text;
-                    lineBuffer.set(textAction.row, line);
                     cursorRow = textAction.row;
                     cursorCol = textAction.col;
+                    lineBuffer.get(cursorRow).insert(cursorCol, textAction.text.toString());
+                    cursorCol = cursorCol + 1; // move the cursor one ahead so if insertion happens the character is
+                                               // appended at correct position , why not use it in stack? if it is
+                                               // appended at stack then index out of bound error happens because the
+                                               // index is one ahead of entire length for easy insertion, yeah i also
+                                               // hated coding this
+                    clearLineAndRedraw(terminal);
                     break;
                 case SPLIT_LINE:
                     break;
                 case JOIN_LINE:
+                    cursorRow = textAction.row;
+                    cursorCol = textAction.col;
+                    performEnter(terminal);
                     break;
                 default:
                     break;
             }
-            terminal.writer().print(String.format("\033[%d;1H", textAction.row + HEADER_DISPLAY + 1)); // Move
-            // to
-            // row
-            // column 1
-            terminal.writer().print("\033[2K"); // Clear the entire line
-            terminal.writer().print(lineBuffer.get(cursorRow).toString());
-            terminal.writer()
-                    .print(String.format("\033[%d;%dH", textAction.row + HEADER_DISPLAY + 1,
-                            textAction.col + 1));
-            terminal.flush();
+
+            // terminal.writer().print(String.format("\033[%d;1H", textAction.row +
+            // HEADER_DISPLAY + 1)); // Move
+            // // to
+            // // row
+            // // column 1
+            // terminal.writer().print("\033[2K"); // Clear the entire line
+            // terminal.writer().print(lineBuffer.get(cursorRow).toString());
+            // terminal.writer()
+            // .print(String.format("\033[%d;%dH", textAction.row + HEADER_DISPLAY + 1,
+            // textAction.col + 1));
+            // terminal.flush();
 
         } catch (Exception ex) {
             Debugger.log(functionName);
             Debugger.error(ex.getMessage());
             Debugger.printStackTrace(ex);
         }
+    }
+
+    public static void clearLineAndRedraw(Terminal terminal) {
+        String line = lineBuffer.get(cursorRow).toString();
+        terminal.writer().print(String.format("\033[%d;1H", cursorRow + HEADER_DISPLAY + 1)); // Move to row
+        // column 1
+        terminal.writer().print("\033[2K"); // Clear the entire line
+        terminal.writer().print(line);
+        terminal.writer()
+                .print(String.format("\033[%d;%dH", cursorRow + HEADER_DISPLAY + 1, cursorCol + 1)); // keep
+                                                                                                     // the
+                                                                                                     // cursor
+                                                                                                     // at
+                                                                                                     // the
+                                                                                                     // location
+        terminal.flush();
+    }
+
+    public static void performEnter(Terminal terminal) {
+        int currentLineSize = lineBuffer.get(cursorRow).length();
+        String left = lineBuffer.get(cursorRow).substring(0, cursorCol);
+        String right = lineBuffer.get(cursorRow).substring(cursorCol);
+        lineBuffer.get(cursorRow).replace(0, cursorCol, left);
+        lineBuffer.get(cursorRow).replace(cursorCol, currentLineSize, "");
+        lineBuffer.add(cursorRow + 1, new StringBuilder(right));
+        cursorRow++;
+        cursorCol = 0;
+        staticPrint.clearScreen(terminal);
+        staticPrint.printImpDetailInStarting(terminal);
+        handleRedraw(terminal);
+        moveCursorToSpecificPosition(terminal, cursorRow, cursorCol);
+    }
+
+    public static void performLineMerge(Terminal terminal) {
+        // Error in this logic , fix it
+        StringBuilder currentLine = lineBuffer.remove(cursorRow); // remove current
+        // Get the column before appending so the cursor is in exact postion
+        cursorCol = Math.max(0, lineBuffer.get(cursorRow - 1).length());
+        lineBuffer.get(cursorRow - 1).append(currentLine); // merge current into previous
+        staticPrint.clearScreen(terminal);
+        staticPrint.printImpDetailInStarting(terminal);
+        handleRedraw(terminal);
+        cursorRow = lineBuffer.size() - 1;
+        moveCursorToSpecificPosition(terminal, cursorRow, cursorCol);
     }
 }
