@@ -1,8 +1,11 @@
 package com.editor;
 
+import java.io.FileReader;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Scanner;
 import java.util.Stack;
 
 import org.jline.terminal.Terminal;
@@ -138,6 +141,9 @@ public class TerminalUI {
             }
             if (key == 18) { // Implement Redo
                 performRedo(terminal);
+            }
+            if (key == 19) { // Save to file
+                performSaveFile(terminal, "output.txt");
             }
 
         }
@@ -465,4 +471,20 @@ public class TerminalUI {
         }
     }
 
+    public static void performSaveFile(Terminal terminal, String filePath) {
+        String functionName = "performSaveFile";
+        try {
+            FileWriter writer = new FileWriter(filePath);
+            for (StringBuilder line : lineBuffer) {
+                writer.write(line.toString());
+                writer.write("\n");
+            }
+            writer.close();
+            Info.showStatus(terminal, "Saved file to" + filePath);
+        } catch (Exception ex) {
+            Debugger.log(functionName);
+            Debugger.error(ex.getMessage());
+            Debugger.printStackTrace(ex);
+        }
+    }
 }
