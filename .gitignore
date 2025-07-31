@@ -12,7 +12,6 @@ target/
 *.swp
 *.swo
 *.vscode
-
+*.txt
 #Bugs
-Bugs.txt
 dependency-reduced-pom.xml
