@@ -1,13 +1,13 @@
 package com.editor;
 
-import java.io.FileReader;
+import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Scanner;
 import java.util.Stack;
 
+import org.jline.terminal.Attributes;
 import org.jline.terminal.Terminal;
 import org.jline.terminal.TerminalBuilder;
 import org.jline.utils.InfoCmp;
@@ -18,6 +18,12 @@ import com.editor.util.Debugger;
 import sun.misc.Signal;
 import sun.misc.SignalHandler;
 
+import org.jline.reader.LineReader;
+import org.jline.reader.LineReaderBuilder;
+import org.jline.reader.UserInterruptException;
+// import org.jline.reader.impl.completer.FileNameCompleter;
+import org.jline.builtins.Completers.FileNameCompleter;
+
 public class TerminalUI {
     static int cursorRow = 0;
     static int cursorCol = 0;
@@ -27,6 +33,8 @@ public class TerminalUI {
     static int prefferedCol = -1; // remember the vertical memory for up /down cursor movements
     static Stack<TextAction> undoStack = new Stack<>();
     static Stack<TextAction> redoStack = new Stack<>();
+    static String saveFilePath = "";
+    static String fileName = "output.txt";
 
     public void createTerminal() {
         String functionName = "TerminalUI::createTerminal";
@@ -143,7 +151,10 @@ public class TerminalUI {
                 performRedo(terminal);
             }
             if (key == 19) { // Save to file
-                performSaveFile(terminal, "output.txt");
+                if (saveFilePath.equals("") && saveFilePath.length() == 0) {
+                    performAskPath(terminal);
+                }
+                performSaveFile(terminal, saveFilePath);
             }
 
         }
@@ -474,6 +485,10 @@ public class TerminalUI {
     public static void performSaveFile(Terminal terminal, String filePath) {
         String functionName = "performSaveFile";
         try {
+            if (filePath.contains("~")) {
+                String homeDir = System.getProperty("user.home");
+                filePath = filePath.replace("~", homeDir);
+            }
             FileWriter writer = new FileWriter(filePath);
             for (StringBuilder line : lineBuffer) {
                 writer.write(line.toString());
@@ -481,10 +496,52 @@ public class TerminalUI {
             }
             writer.close();
             Info.showStatus(terminal, "Saved file to" + filePath);
+            terminal.flush();
         } catch (Exception ex) {
             Debugger.log(functionName);
             Debugger.error(ex.getMessage());
             Debugger.printStackTrace(ex);
         }
     }
+
+    public static void performAskPath(Terminal terminal) {
+        try {
+            Info.showStatus(terminal,
+                    "Please enter the path to save your file for home start with '~' this message will clear once you start the path press tab for autocompletion :");
+            LineReader fileReader = LineReaderBuilder.builder()
+                    .terminal(terminal)
+                    .completer(new FileNameCompleter()) // enables tab completion for files/dirs
+                    .build();
+
+            // This will block until the user types a path and presses Enter
+
+            saveFilePath = fileReader.readLine();
+            // if (checkFileisPresent(terminal)) {
+            // fileReader.readLine();
+            // }
+        } catch (UserInterruptException ex) {
+
+        } catch (Exception ex) {
+            terminal.writer().println("There was an error in saving the file in the path");
+        }
+    }
+
+    // public static boolean checkFileisPresent(Terminal terminal) {
+    // String functionName = "TerminalUI:checkFileisPresent";
+    // try {
+    // File file = new File(saveFilePath);
+    // if (file.exists()) {
+    // Info.showStatus(terminal,
+    // "The file " + saveFilePath + " is already present do you want to override it?
+    // y/n");
+    // return true;
+    // }
+
+    // } catch (Exception ex) {
+    // Debugger.log(functionName);
+    // Debugger.error(ex.getMessage());
+    // Debugger.printStackTrace(ex);
+    // }
+    // return false;
+    // }
 }

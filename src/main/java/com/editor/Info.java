@@ -16,7 +16,8 @@ public class Info {
     public static void showStatus(Terminal terminal, String message) {
         String functionName = "TerminalUI::showStatus";
         try {
-            terminal.writer().print("\033[" + terminal.getHeight() + ";1H");
+            int startRow = terminal.getHeight();
+            terminal.writer().print("\033[" + startRow + ";1H");
             terminal.writer().print("\033[2K"); // Clear entire line
             terminal.writer().print(message);
             terminal.writer().flush();
@@ -24,9 +25,13 @@ public class Info {
                 try {
                     Thread.sleep(1000);
                     synchronized (terminal) {
-                        terminal.writer().print("\033[" + terminal.getHeight() + ";1H");
-                        terminal.writer().print("\033[2K"); // Clear entire line
-                        terminal.flush();
+                        int linesNeeded = (message.length() / terminal.getWidth()) + 1;
+                        int statusStart = terminal.getHeight() - linesNeeded + 1;
+                        if (statusStart < 1)
+                            statusStart = 1; // clamp to top
+
+                        terminal.writer().print("\033[" + statusStart + ";1H");
+                        terminal.writer().print("\033[J");
                     }
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
