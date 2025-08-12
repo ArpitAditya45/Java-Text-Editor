@@ -6,8 +6,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Stack;
-
-import org.jline.terminal.Attributes;
 import org.jline.terminal.Terminal;
 import org.jline.terminal.TerminalBuilder;
 import org.jline.utils.InfoCmp;
@@ -21,7 +19,6 @@ import sun.misc.SignalHandler;
 import org.jline.reader.LineReader;
 import org.jline.reader.LineReaderBuilder;
 import org.jline.reader.UserInterruptException;
-// import org.jline.reader.impl.completer.FileNameCompleter;
 import org.jline.builtins.Completers.FileNameCompleter;
 
 public class TerminalUI {
@@ -34,7 +31,6 @@ public class TerminalUI {
     static Stack<TextAction> undoStack = new Stack<>();
     static Stack<TextAction> redoStack = new Stack<>();
     static String saveFilePath = "";
-    static String fileName = "output.txt";
 
     public void createTerminal() {
         String functionName = "TerminalUI::createTerminal";
@@ -87,13 +83,20 @@ public class TerminalUI {
     public static void startProcess(Terminal terminal) throws IOException {
         lineBuffer.add(new StringBuilder());
         while (true) {
-            handelBlockSignals();
             int key = terminal.reader().read();
             // terminal.writer().println(key);
             // terminal.flush();
             // terminal.writer().println(cursorRow + " " + cursorCol);
-            if (key == 17) // Ctrl+Q to exit
+            if (key == 17) {// Ctrl+Q to exit
+                if (saveFilePath.length() == 0) {
+                    if (saveFilePath.equals("") && saveFilePath.length() == 0) {
+                        performAskPath(terminal);
+                    }
+                    performSaveFile(terminal, saveFilePath);
+                }
                 break;
+            }
+
             if (key == 127 || key == 8) { // backspace
                 handleBackSpace(terminal);
                 // clear the redo stack as it is no longer valid
@@ -433,7 +436,8 @@ public class TerminalUI {
                                               // position and overrid the character
 
                     // Push the same action to undo stack so user can undo this redo
-                    undoStack.push(textAction);
+                    undoStack.push(textAction); // just to be consistent we push it after , we can push it befor too ,
+                                                // it will work
 
                     clearLineAndRedraw(terminal);
                     break;
@@ -443,7 +447,7 @@ public class TerminalUI {
                     lineBuffer.get(cursorRow).deleteCharAt(cursorCol);
 
                     // Push the same action to undo stack
-                    undoStack.push(textAction);
+                    undoStack.push(textAction); // same as above insert comment
 
                     clearLineAndRedraw(terminal);
                     break;
@@ -485,10 +489,6 @@ public class TerminalUI {
     public static void performSaveFile(Terminal terminal, String filePath) {
         String functionName = "performSaveFile";
         try {
-            if (filePath.contains("~")) {
-                String homeDir = System.getProperty("user.home");
-                filePath = filePath.replace("~", homeDir);
-            }
             FileWriter writer = new FileWriter(filePath);
             for (StringBuilder line : lineBuffer) {
                 writer.write(line.toString());
@@ -505,6 +505,7 @@ public class TerminalUI {
     }
 
     public static void performAskPath(Terminal terminal) {
+        String functionName = "TerminalUI:performAskPath";
         try {
             Info.showStatus(terminal,
                     "Please enter the path to save your file for home start with '~' this message will clear once you start the path press tab for autocompletion :");
@@ -513,35 +514,55 @@ public class TerminalUI {
                     .completer(new FileNameCompleter()) // enables tab completion for files/dirs
                     .build();
 
-            // This will block until the user types a path and presses Enter
-
             saveFilePath = fileReader.readLine();
-            // if (checkFileisPresent(terminal)) {
-            // fileReader.readLine();
-            // }
+            if (saveFilePath.contains("~")) {
+                String homeDir = System.getProperty("user.home");
+                saveFilePath = saveFilePath.replace("~", homeDir);
+            }
+            if (checkFileisPresent(terminal)) {
+                while (true) {
+                    String text = fileReader.readLine();
+                    if (text.length() > 1) {
+                        Info.showStatus(terminal, "Only Enter y/n: ");
+                        continue;
+                    }
+                    if (text.length() == 1) {
+                        if (text.charAt(0) == 'y' || text.charAt(0) == 'Y') {
+                            Info.showStatus(terminal, "The File will be overriden");
+                            break;
+                        } else if (text.charAt(0) == 'n' || text.charAt(0) == 'N') {
+                            long timestamp = System.currentTimeMillis();
+                            saveFilePath = saveFilePath + timestamp;
+                            break;
+                        }
+                    }
+                }
+            }
+            performSaveFile(terminal, saveFilePath);
         } catch (UserInterruptException ex) {
 
         } catch (Exception ex) {
-            terminal.writer().println("There was an error in saving the file in the path");
+            Debugger.log(functionName);
+            Debugger.error(ex.getMessage());
+            Debugger.printStackTrace(ex);
         }
     }
 
-    // public static boolean checkFileisPresent(Terminal terminal) {
-    // String functionName = "TerminalUI:checkFileisPresent";
-    // try {
-    // File file = new File(saveFilePath);
-    // if (file.exists()) {
-    // Info.showStatus(terminal,
-    // "The file " + saveFilePath + " is already present do you want to override it?
-    // y/n");
-    // return true;
-    // }
+    public static boolean checkFileisPresent(Terminal terminal) {
+        String functionName = "TerminalUI:checkFileisPresent";
+        try {
+            File file = new File(saveFilePath);
+            if (file.exists()) {
+                Info.showStatus(terminal,
+                        "The file " + saveFilePath + " is already present do you want to override it? y/n : ");
+                return true;
+            }
 
-    // } catch (Exception ex) {
-    // Debugger.log(functionName);
-    // Debugger.error(ex.getMessage());
-    // Debugger.printStackTrace(ex);
-    // }
-    // return false;
-    // }
+        } catch (Exception ex) {
+            Debugger.log(functionName);
+            Debugger.error(ex.getMessage());
+            Debugger.printStackTrace(ex);
+        }
+        return false;
+    }
 }
