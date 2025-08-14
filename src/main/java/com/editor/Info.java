@@ -9,7 +9,7 @@ public class Info {
     public void printImpDetailInStarting(Terminal terminal) {
         terminal.writer().println("Welcome to your Text Editor!");
         terminal.writer().println("Press Ctrl+Q to exit.");
-        terminal.writer().println("Press Ctrl+U for undo and Ctrl+R for redo");
+        terminal.writer().println("Press Ctrl+U for undo and Ctrl+R for redo and Ctrl+S");
         terminal.flush();
     }
 

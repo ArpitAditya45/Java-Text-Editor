@@ -1,6 +1,7 @@
 package com.editor;
 
 import java.io.File;
+import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -90,7 +91,7 @@ public class TerminalUI {
             if (key == 17) {// Ctrl+Q to exit
                 if (saveFilePath.length() == 0) {
                     if (saveFilePath.equals("") && saveFilePath.length() == 0) {
-                        performAskPath(terminal);
+                        performAskPath(terminal, false);
                     }
                     performSaveFile(terminal, saveFilePath);
                 }
@@ -155,9 +156,21 @@ public class TerminalUI {
             }
             if (key == 19) { // Save to file
                 if (saveFilePath.equals("") && saveFilePath.length() == 0) {
-                    performAskPath(terminal);
+                    performAskPath(terminal, false);
                 }
                 performSaveFile(terminal, saveFilePath);
+            }
+            if (key == 15) {
+                if (lineBuffer.get(0).length() != 0) {
+                    Info.showStatus(terminal, "Save the previous file before opening new one!!");
+                    performAskPath(terminal, false);
+                    performSaveFile(terminal, saveFilePath);
+                }
+                lineBuffer.clear();
+                Info.showStatus(terminal, "Provide path for opening a new file");
+                performAskPath(terminal, true);
+                copyFileContentsToBuffer(terminal, saveFilePath);
+
             }
 
         }
@@ -504,11 +517,11 @@ public class TerminalUI {
         }
     }
 
-    public static void performAskPath(Terminal terminal) {
+    public static void performAskPath(Terminal terminal, boolean isOpen) {
         String functionName = "TerminalUI:performAskPath";
         try {
             Info.showStatus(terminal,
-                    "Please enter the path to save your file for home start with '~' this message will clear once you start the path press tab for autocompletion :");
+                    "Please enter the path to your file for home start with '~' this message will clear once you start the path press tab for autocompletion :");
             LineReader fileReader = LineReaderBuilder.builder()
                     .terminal(terminal)
                     .completer(new FileNameCompleter()) // enables tab completion for files/dirs
@@ -519,7 +532,9 @@ public class TerminalUI {
                 String homeDir = System.getProperty("user.home");
                 saveFilePath = saveFilePath.replace("~", homeDir);
             }
-            if (checkFileisPresent(terminal)) {
+            if (checkFileisPresent(terminal) && !isOpen) {
+                Info.showStatus(terminal,
+                        "The file " + saveFilePath + " is already present do you want to override it? y/n : ");
                 while (true) {
                     String text = fileReader.readLine();
                     if (text.length() > 1) {
@@ -538,7 +553,6 @@ public class TerminalUI {
                     }
                 }
             }
-            performSaveFile(terminal, saveFilePath);
         } catch (UserInterruptException ex) {
 
         } catch (Exception ex) {
@@ -553,8 +567,7 @@ public class TerminalUI {
         try {
             File file = new File(saveFilePath);
             if (file.exists()) {
-                Info.showStatus(terminal,
-                        "The file " + saveFilePath + " is already present do you want to override it? y/n : ");
+                // moved the status out of here
                 return true;
             }
 
@@ -564,5 +577,51 @@ public class TerminalUI {
             Debugger.printStackTrace(ex);
         }
         return false;
+    }
+
+    public static void copyFileContentsToBuffer(Terminal terminal, String filePath) {
+        String functionName = "TerminalUI:copyFileToBuffer";
+        try {
+            File file = new File(saveFilePath);
+            if (file.exists()) {
+                FileReader fileReader = new FileReader(file);
+                int content = fileReader.read();
+                StringBuilder currentLine = new StringBuilder();
+                while (content != -1) {
+                    if (content == 13) {
+                        // /r --> carrige return
+                        continue;
+                    } else if (content == 10) {
+                        lineBuffer.add(currentLine);
+                        currentLine = new StringBuilder();
+                    } else if (currentLine.length() >= terminal.getWidth()) {
+                        lineBuffer.add(currentLine);
+                        currentLine = new StringBuilder();
+                    } else {
+                        currentLine.append((char) content);
+                    }
+
+                    content = fileReader.read();
+                }
+                if (currentLine.length() > 0) {
+                    lineBuffer.add(currentLine);
+                }
+                staticPrint.clearScreen(terminal);
+                staticPrint.printImpDetailInStarting(terminal);
+                handleRedraw(terminal);
+                cursorRow = lineBuffer.size() - 1;
+                cursorCol = lineBuffer.get(cursorRow).length();
+                moveCursorToSpecificPosition(terminal, cursorRow, cursorCol);
+                fileReader.close();
+
+            } else {
+                Info.showStatus(terminal, "The given file does not exist try again");
+            }
+
+        } catch (Exception ex) {
+            Debugger.log(functionName);
+            Debugger.error(ex.getMessage());
+            Debugger.printStackTrace(ex);
+        }
     }
 }
